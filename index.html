@@ -1,0 +1,370 @@
+
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+</head>
+<body>
+<script src="jquery.min.js"></script>
+<script src="springy.js"></script>
+<script src="springyui.js"></script>
+<script>
+var graph = new Springy.Graph()
+jQuery(function(){var springy = window.springy = jQuery('#springydemo').springy({graph: graph})})
+Array.prototype.indexOf = function (val) {
+  for (i = 0; i < this.length; i++) {
+    if (this[i] == val) { return i }
+  }
+  return -1
+}
+function refreshDisplay() {
+  output = "[EMPTY]"
+  for (i = 0; i < treatment.length; i++) {
+    if (i == 0) {
+      output = treatment[0]
+    } else {
+    output = output + ", " + treatment[i]
+    }
+  }
+  document.getElementById('treatment').value = output
+  output = "[EMPTY]"
+  for (i = 0; i < outcome.length; i++) {
+    if (i == 0) {
+      output = outcome[0]
+    } else {
+    output = output + ", " + outcome[i]
+    }
+  }
+  document.getElementById('outcome').value = output
+  output = "[EMPTY]"
+  for (i = 0; i < condition.length; i++) {
+    if (i == 0) {
+      output = condition[0]
+    } else {
+    output = output + ", " + condition[i]
+    }
+  }
+  document.getElementById('condition').value = output
+}
+function addNode() {
+  graph.addNodes(document.getElementById('nodeName').value)
+  document.getElementById('nodeName').value=''
+}
+function removeNode() {
+  name = document.getElementById('nodeName').value
+  graph.removeNodes(name)
+  document.getElementById('nodeName').value=''
+  if (treatment.indexOf(name) != -1) {
+    treatment.splice(treatment.indexOf(name), 1)
+  }
+  if (outcome.indexOf(name) != -1) {
+    outcome.splice(outcome.indexOf(name), 1)
+  }
+  if (condition.indexOf(name) != -1) {
+    condition.splice(condition.indexOf(name), 1)
+  }
+  refreshDisplay()
+}
+function clearEdge() {
+  graph.removeEdges([
+    document.getElementById('edgeFrom').value, 
+    document.getElementById('edgeTo').value
+  ])
+  graph.removeEdges([
+    document.getElementById('edgeTo').value,
+    document.getElementById('edgeFrom').value
+  ])
+}
+function hasEdge(from, to) {
+  edges = graph.adjacency[from]
+  if (edges == undefined) {
+    return false
+  }
+  edge = edges[to]
+  if (edge == undefined) {
+    return false
+  }
+  return !edge[0].data.latent
+}
+function hasLatentEdge(from, to) {
+  edges = graph.adjacency[from]
+  if (edges != undefined) {
+    edge = edges[to]
+    if (edge != undefined && edge[0].data.latent) {
+      return true
+    }
+  }
+  edges = graph.adjacency[to]
+  if (edges != undefined) {
+    edge = edges[from]
+    if (edge != undefined && edge[0].data.latent) {
+      return true
+    }
+  }
+  return false
+}
+function addEdge() {
+  from = document.getElementById('edgeFrom').value
+  to = document.getElementById('edgeTo').value
+  latent = hasLatentEdge(from, to)
+  clearEdge()
+  if (from == "$S$") {
+    alert(" $S$ represents selection bias, which cannot affect other variable")
+    return
+  } else if (to == "$S$") {
+    edgeColor = '#FF0000'
+  } else {
+    edgeColor = '#000000'
+  }
+  graph.addEdges([from, to, {color: edgeColor, latent : false}])
+  if (latent) {
+    graph.addEdges([to, from, {color: '#505050', directional : false, latent : true}])
+  }
+  document.getElementById('edgeFrom').value=''
+  document.getElementById('edgeTo').value=''
+}
+function addLatentEdge() {
+  from = document.getElementById('edgeFrom').value
+  to = document.getElementById('edgeTo').value
+  if (!hasLatentEdge(from, to)) {
+    if (hasEdge(from, to)) {
+      graph.addEdges([to, from, {color: '#505050', directional : false, latent : true}])
+    } else {
+      graph.addEdges([from, to, {color: '#505050', directional : false, latent : true}])
+    }
+  }
+  document.getElementById('edgeFrom').value=''
+  document.getElementById('edgeTo').value=''
+}
+function removeEdge() {
+  clearEdge()
+  document.getElementById('edgeFrom').value=''
+  document.getElementById('edgeTo').value=''
+}
+
+function generate() {
+  var nodes = new Array
+  for (i = 0; i < graph.nodes.length; i++) {
+    nodes.push(graph.nodes[i].id)
+  }
+  var edges = new Array
+  var bidirect = new Array
+  for (i = 0; i < graph.edges.length; i++) {
+    edge = graph.edges[i]
+    pair = [edge.source.id, edge.target.id]
+    if (edge.data.latent) {
+      bidirect.push(pair)
+    } else {
+      edges.push(pair)
+    }
+  }
+  var jsonData = {"nodes":nodes, "edges":edges, "bidirect":bidirect, "x":treatment, "y":outcome, "z":condition}
+  console.log(jsonData)
+  filename = document.getElementById('fileName').value
+  if (filename == "") {
+    filename = "CausalGraph"
+  }
+  if(typeof jsonData === 'object'){
+		jsonData = JSON.stringify(jsonData, undefined, 4)
+  }
+	var blob = new Blob([jsonData], {type: 'text/json'}),
+	e = document.createEvent('MouseEvents'),
+	a = document.createElement('a')
+	a.download = filename + ".json"
+	a.href = window.URL.createObjectURL(blob)
+	a.dataset.downloadurl = ['text/json', a.download, a.href].join(':')
+	e.initMouseEvent('click', true, false, window, 0, 0, 0, 0, 0, false, false, false, false, 0, null)
+	a.dispatchEvent(e)
+}
+
+var treatment = new Array
+var outcome = new Array
+var condition = new Array
+function addTreatment() {
+  var name = document.getElementById('nodeType').value
+  var node1 = graph.nodeSet[name]
+	if (node1 == undefined) {
+		throw new TypeError("invalid node name: " + e[0])
+  }
+  if (treatment.indexOf(name) == -1) {
+    treatment.push(name)
+  }
+  refreshDisplay()
+  document.getElementById('nodeType').value = ""
+}
+function addOutcome() {
+  var name = document.getElementById('nodeType').value
+  var node1 = graph.nodeSet[name]
+	if (node1 == undefined) {
+		throw new TypeError("invalid node name: " + e[0])
+  }
+  if (outcome.indexOf(name) == -1) {
+    outcome.push(name)
+  }
+  refreshDisplay()
+  document.getElementById('nodeType').value = ""
+}
+function addCondition() {
+  var name = document.getElementById('nodeType').value
+  var node1 = graph.nodeSet[name]
+	if (node1 == undefined) {
+		throw new TypeError("invalid node name: " + e[0])
+  }
+  if (condition.indexOf(name) == -1) {
+    condition.push(name)
+  }
+  refreshDisplay()
+  document.getElementById('nodeType').value = ""
+}
+function clearTreatment() {
+  treatment.splice(0)
+  document.getElementById('treatment').value = "[EMPTY]"
+}
+function clearOutcome() {
+  outcome.splice(0)
+  document.getElementById('outcome').value = "[EMPTY]"
+}
+function clearCondition() {
+  condition.splice(0)
+  document.getElementById('condition').value = "[EMPTY]"
+}
+
+function resetAll() {
+  clearTreatment()
+  clearOutcome()
+  clearCondition()
+  graph.resetAll()
+}
+
+function loadExample() {
+  clearTreatment()
+  clearOutcome()
+  clearCondition()
+  resetAll()
+  val = document.getElementById('example').value
+  if (val == "example1") {
+    graph.addNodes("W1", "W2", "W3", "X", "Y", "$S$")
+    graph.addEdges(["W1", "W2", {color: '#000000', latent : false}])
+    graph.addEdges(["W2", "X", {color: '#000000', latent : false}])
+    graph.addEdges(["X", "Y", {color: '#000000', latent : false}])
+    graph.addEdges(["W3", "$S$", {color: '#FF0000', latent : false}])
+    graph.addEdges(["W1", "X", {color: '#505050', directional : false, latent : true}])
+    graph.addEdges(["W1", "Y", {color: '#505050', directional : false, latent : true}])
+    graph.addEdges(["W2", "W3", {color: '#505050', directional : false, latent : true}])
+    treatment.push("X")
+    outcome.push("Y")
+  } else if (val == "example2") {
+    graph.addNodes("X1", "X2", "Z1", "Z2", "Y")
+    graph.addEdges(["X1", "X2", {color: '#000000', latent : false}])
+    graph.addEdges(["X1", "Z1", {color: '#000000', latent : false}])
+    graph.addEdges(["Z1", "X2", {color: '#000000', latent : false}])
+    graph.addEdges(["X2", "Z2", {color: '#000000', latent : false}])
+    graph.addEdges(["Z2", "X1", {color: '#000000', latent : false}])
+    graph.addEdges(["Z1", "Y", {color: '#000000', latent : false}])
+    graph.addEdges(["Z2", "Y", {color: '#000000', latent : false}])
+    graph.addEdges(["X1", "X2", {color: '#505050', directional : false, latent : true}])
+    graph.addEdges(["X1", "Y", {color: '#505050', directional : false, latent : true}])
+    graph.addEdges(["X2", "Y", {color: '#505050', directional : false, latent : true}])
+    treatment.push("X1")
+    treatment.push("X2")
+    outcome.push("Y")
+  }
+  refreshDisplay()
+}
+
+</script>
+
+<title>Causal Graph Generator for CEE</title>
+<h1>Causal Graph Generator for CEE</h1>
+<h2>CEE因果图生成器</h2>
+<p><i>[Author] Fengzhi Li</i></p>
+<p>This page is used for generating causal graph input for <a href="https://github.com/L-F-Z/cee">CEE</a> (Causal Effect Engine).</p>
+<p>More descriptions will be added soon.</p>
+</p>
+<table>
+  <tr align="right">
+      <td>Node Name</td>
+      <td><input type="text" name="nodeName" style="width:150px" id="nodeName"></td>
+      <td><input type="button" name="addNode" value="Add Node" style="width:150px" onclick="addNode()"></td>
+      <td><input type="button" name="removeNode" value="Remove Node" style="width:150px" onclick="removeNode()"></td>
+  </tr>
+  <tr align="right">
+      <td>From</td>
+      <td><input type="text" name="edgeFrom" style="width:150px" id="edgeFrom"></td>
+      <td>To</td>
+      <td><input type="text" name="edgeTo" style="width:150px" id="edgeTo"></td>
+  </tr>
+  <tr align="right">
+      <td><input type="button" name="resetAll" value="Reset All" style="width:100px;background-color:red;color:white;" onclick="resetAll()"></td>
+      <td><input type="button" name="addEdge" value="Add Edge" style="width:150px" onclick="addEdge()"></td>
+      <td><input type="button" name="addLatentEdge" value="Add Latent Edge" style="width:150px" onclick="addLatentEdge()"></td>
+      <td><input type="button" name="removeEdge" value="Remove Edge" style="width:150px" onclick="removeEdge()"></td>
+  </tr>
+</table>
+
+<table border="6">
+  <tr><td><canvas id="springydemo" width="640" height="480" /></td></tr>
+</table>
+
+<table>
+  <tr>
+    <td>Node Name</td>
+    <td><input type="button" name="addTreatment" value="Add" style="width:75px" onclick="addTreatment()"></td>
+    <td><input type="button" name="clearTreatment" value="Clear" style="width:75px" onclick="clearTreatment()"></td>
+    <td width="100"><b>Treatment</b></td>
+    <td><output id="treatment">[EMPTY]</output></td>
+  </tr>
+  <tr>
+    <td><input type="text" name="nodeType" style="width:150px" id="nodeType"></td>
+    <td><input type="button" name="addOutcome" value="Add" style="width:75px" onclick="addOutcome()"></td>
+    <td><input type="button" name="clearOutcome" value="Clear" style="width:75px" onclick="clearOutcome()"></td>
+    <td><b>Outcome</b></td>
+    <td><output id="outcome">[EMPTY]</output></td>
+  </tr>
+  <tr>
+    <td></td>
+    <td><input type="button" name="addCondition" value="Add" style="width:75px" onclick="addCondition()"></td>
+    <td><input type="button" name="clearCondition" value="Clear" style="width:75px" onclick="clearCondition()"></td>
+    <td><b>Condition</b></td>
+    <td><output id="condition">[EMPTY]</output></td>
+  </tr>
+  <tr><td>File Name</td></tr>
+  <tr>
+    <td><input type="text" name="fileName" placeholder="CausalGraph" style="width:150px" id="fileName"></td>
+    <td colspan="2"><input type="button" name="generateJSON" value="Generate JSON" style="width:150px" onclick="generate()"></td>
+  </tr>
+  <tr><td>Load Example</td></tr>
+  <tr>
+    <td>
+      <select style="width:150px" id="example">
+        <option value="example1">Bareinboim(2012)</option>
+        <option value="example2">Kutoki(1999)</option>
+      </select>
+    </td>
+    <td colspan="2"><input type="button" name="loadExample" value="Load Example" style="width:150px" onclick="loadExample()"></td>
+  </tr>
+</table>
+
+<!-- <div style="width:300px;margin:0 auto; padding:20px 0;">
+  <a target="_blank" href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=11010802039075" style="display:inline-block;text-decoration:none;height:20px;line-height:20px;"><img src="gongan.png" style="float:left;"/><p style="float:left;height:20px;line-height:20px;margin: 0px 0px 0px 5px; color:#939393;">京公网安备 11010802039075号</p></a>
+</div>
+
+<div style="text-align:center;">
+  <a href='http://beian.miit.gov.cn/' target='_blank'>京ICP备19059758号-1</a>
+  </div> -->
+
+  <div style="display: flex; justify-content: center; margin: 20px;">
+    <a href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=11010802039075" target="_blank" style="text-decoration: none; color: #939393;">
+      <div style="display: flex; align-items: center;">
+        <img src="gongan.png"/>
+        <span>京公网安备 11010802039075号</span>
+      </div>
+    </a>
+    <div>&nbsp;&nbsp;&nbsp;</div>
+    <a href="http://beian.miit.gov.cn/" target="_blank" style="text-decoration: none; color: #939393;">
+      京ICP备19059758号-1
+    </a>
+  </div>
+
+</body>
+
+</html>
